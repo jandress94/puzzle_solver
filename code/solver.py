@@ -26,7 +26,10 @@ for piece_filename in os.listdir(pieces_folder_name):
     # image_mat = cv2.imread(os.path.join(pieces_folder_name, piece_filename)).astype('int16')
 
     # image_mat = np.rot90(image_mat, random.randint(0, 3))
-    image_mat = scipy.ndimage.interpolation.rotate(image_mat, random.randint(0, 360), order=0, cval=255)
+    rand_rot = random.randint(0, 360)
+    # rand_rot = 171
+    print("rotating %d" % (rand_rot))
+    image_mat = scipy.ndimage.interpolation.rotate(image_mat, rand_rot, order=0, cval=255)
 
     pieces_list += segmenter.extract(image_mat)
 
