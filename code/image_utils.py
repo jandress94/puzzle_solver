@@ -7,6 +7,9 @@ import sys
 from constants import *
 from line import *
 
+def dist(coord1, coord2):
+    return math.sqrt((coord1[0] - coord2[0])**2 + (coord1[1] - coord2[1])**2)
+
 def mark(img, x, y, color = np.array([0, 0, 0]), includeNeighbors = True):
     if isInBounds(img, x, y):
         img[x, y] = color
@@ -357,12 +360,12 @@ def straighten(img):
 
     return scipy.ndimage.interpolation.rotate(img, -rot_sum / len_sum, order=0, cval=NON_PIECE_VAL)
 
-def getPieceCorners(img):
-    if DEBUG: print("computing piece corners")
+def getEdgeTypes(img):
+    if DEBUG: print("computing edge types")
 
-    expanded_img = NON_PIECE_VAL * np.ones((img.shape[0] + 10, img.shape[1] + 10, 3))
-    expanded_img[5:5+img.shape[0], 5:5+img.shape[1]] = img
-    img = expanded_img
+    # expanded_img = NON_PIECE_VAL * np.ones((img.shape[0] + 10, img.shape[1] + 10, 3))
+    # expanded_img[5:5+img.shape[0], 5:5+img.shape[1]] = img
+    # img = expanded_img
 
     border_path = extractPieceBorderPath(img)
     angle_list = extractPieceBorderAngles(border_path)
@@ -370,12 +373,15 @@ def getPieceCorners(img):
 
     edges = [[] for _ in xrange(4)]
 
+    # put the straight segments into buckets based on which side of the piece they lie on. order is top, left, bottom, right
     for start_ind, end_ind in straight_segments:
         i = (start_ind - BORDER_STEP / 2 + len(border_path)) % len(border_path)
         j = (end_ind + BORDER_STEP / 2) % len(border_path)
 
+        # check whether this segment is vertical or horizontal
         vert = abs(border_path[i][0] - border_path[j][0]) < abs(border_path[i][1] - border_path[j][1])
 
+        # compute the index for the bucket based on if this segment is vertical / horizontal and whether it is near the NW or SE corner
         index = 0 if vert else 1
         if vert:
             x = (border_path[i][0] + border_path[j][0]) / 2.0
@@ -388,53 +394,35 @@ def getPieceCorners(img):
 
         index += 0 if is_upper_left else 2
 
+        # make sure this segment is pointing in the right direction, since we know that the border path runs CCW
         if is_upper_right_based_on_dirr == (index == 1 or index == 2):
             edges[index].append((i, j))
 
-        mark(img, border_path[i][0], border_path[i][1])
-        mark(img, border_path[j][0], border_path[j][1])
-    mark(img, border_path[0][0], border_path[0][1], color = np.array([0, 255, 0]))
-
-
-    # edges = [[] for _ in xrange(4)]
-    # curr_edge_ind = -1
-    # curr_vert = True
-
-    # for start_ind, end_ind in straight_segments:
-    #     i = (start_ind - BORDER_STEP / 2 + len(border_path)) % len(border_path)
-    #     j = (end_ind + BORDER_STEP / 2) % len(border_path)
-
-    #     vert = abs(border_path[i][0] - border_path[j][0]) < abs(border_path[i][1] - border_path[j][1])
-
-    #     if curr_edge_ind < 0 or curr_vert != vert:
-    #         curr_edge_ind += 1
-    #         curr_vert = vert
-
-    #     edges[curr_edge_ind % len(edges)].append((i,j))
     #     mark(img, border_path[i][0], border_path[i][1])
     #     mark(img, border_path[j][0], border_path[j][1])
     # mark(img, border_path[0][0], border_path[0][1], color = np.array([0, 255, 0]))
 
-    # print(edges)
-
+    # make sure that each edge list contains at least one straight segment
     if np.prod([len(x) for x in edges]) == 0:
         sys.exit("At least one of the edge lists was empty: %s" % (str(edges)))
 
+    # convert the segments to lines
     lines = [[lineFromCoords(border_path[i], border_path[j]) for i, j in edge_list] for edge_list in edges]
 
+    # merge the lines in the same bucket
     for i in xrange(len(lines)):
         while len(lines[i]) > 1:
             line1 = lines[i].pop(0)
             line2 = lines[i].pop(0)
             lines[i].append(lineFromLines(line1, line2))
-
     lines = [x[0] for x in lines]
 
+    # compute the piece's corners as the intersections of the lines
     corners = []
     for i in xrange(len(lines)):
         line1 = lines[i]
         line2 = lines[(i + 1) % len(lines)]
-
+        
         x, y = line1.intersect(line2)
         x = round(x)
         y = round(y)
@@ -443,9 +431,52 @@ def getPieceCorners(img):
         # print(str(line1))
 
         # mark(img, x, y)
-        drawLine(img, line1)
+        # drawLine(img, line1)
+    # drawLine(img, lines[2])
 
+    # find the border point which is closest to each of the computed corners
     closest_corner_border_indices = {i: None for i in xrange(len(corners))}
+    closest_corner_dists = {i: float("inf") for i in xrange(len(corners))}
+    for i in xrange(len(border_path)):
+        for j in xrange(len(corners)):
+            d = dist(border_path[i], corners[j])
+            if d < closest_corner_dists[j]:
+                closest_corner_dists[j] = d
+                closest_corner_border_indices[j] = i
 
+    # for corner_index in closest_corner_border_indices:
+    #     mark(img, border_path[closest_corner_border_indices[corner_index]][0], border_path[closest_corner_border_indices[corner_index]][1])
 
-    return img
+    # divide the border path into the four edges of the piece
+    border_edge_paths = [[] for _ in xrange(len(lines))]
+    for i in xrange(len(border_edge_paths)):
+        ind = closest_corner_border_indices[(i - 1) % len(border_edge_paths)]
+        while ind != closest_corner_border_indices[i]:
+            border_edge_paths[i].append(border_path[ind])
+            ind = (ind + 1) % len(border_path)
+
+    # for x, y in border_edge_paths[1]:
+    #     mark(img, x, y, includeNeighbors = False)
+
+    edge_sticks_out_scores = []
+    for i in xrange(len(border_edge_paths)):
+        outward_multiplier = -1 if i < 2 else 1
+        line_is_horiz = (i % 2) == 0
+
+        line = lines[i]
+        eval_fn = line.evalGivenY if line_is_horiz else line.evalGivenX
+        edge_sticks_out_score = 0
+        for x, y in border_edge_paths[i]:
+            if line_is_horiz:
+                obs_val = x
+                input_val = y
+            else:
+                obs_val = y
+                input_val = x
+
+            d = obs_val - eval_fn(input_val)
+            if abs(d) < EDGE_STICK_OUT_DIST_CUTOFF: continue
+            edge_sticks_out_score += d * outward_multiplier)
+        edge_sticks_out_scores.append(edge_sticks_out_score)
+
+    return border_edge_paths, edge_sticks_out_scores

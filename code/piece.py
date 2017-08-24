@@ -4,6 +4,27 @@ import numpy as np
 
 from image_utils import *
 
+class PieceEdge:
+    def __init__(self, piece, path, out_score, index):
+        self.piece = piece
+        self.path = path
+        self.index = index
+        if abs(out_score) < EDGE_STICK_OUT_SCORE_CUTOFF:
+            self.piece_type = 0
+        elif out_score > 0:
+            self.piece_type = 1
+        else:
+            self.piece_type = -1
+
+    def isStickingOut(self):
+        return self.piece_type == 1
+
+    def isStickingIn(self):
+        return self.piece_type == -1
+
+    def isFlat(self):
+        return self.piece_type == 0
+
 class PuzzlePiece:
     def __init__(self, image_mat):
         if areAllNotPiecePixels(image_mat):
@@ -13,10 +34,10 @@ class PuzzlePiece:
         image_mat = crop(image_mat)
         image_mat = straighten(image_mat)
         image_mat = crop(image_mat)
-
-        image_mat = getPieceCorners(image_mat)
-
         self.image_mat = image_mat
+
+        edge_paths, edge_out_scores = getEdgeTypes(image_mat)
+        self.edges = [PieceEdge(self, edge_paths[i], edge_out_scores[i], i) for i in xrange(len(edge_paths))]
 
     def saveImage(self, filename):
         save_mat = np.copy(self.image_mat)

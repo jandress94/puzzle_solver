@@ -27,7 +27,7 @@ for piece_filename in os.listdir(pieces_folder_name):
 
     # image_mat = np.rot90(image_mat, random.randint(0, 3))
     rand_rot = random.randint(0, 360)
-    # rand_rot = 171
+    # rand_rot = 344
     print("rotating %d" % (rand_rot))
     image_mat = scipy.ndimage.interpolation.rotate(image_mat, rand_rot, order=0, cval=255)
 
@@ -37,3 +37,15 @@ if DEBUG: print("%d pieces" % (len(pieces_list)))
 
 for i in xrange(len(pieces_list)):
     pieces_list[i].saveImage(os.path.join(TEMP_FOLDER_NAME, 'piece%d.jpg' % (i)))
+
+out_edges = []
+in_edges = []
+flat_edges = []
+for i in xrange(len(pieces_list)):
+    for edge in pieces_list[i].edges:
+        if edge.isStickingOut():
+            out_edges.append(edge)
+        elif edge.isStickingIn():
+            in_edges.append(edge)
+        else:
+            flat_edges.append(edge)

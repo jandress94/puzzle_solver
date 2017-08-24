@@ -2,6 +2,7 @@ import math
 import sys
 import numpy as np
 
+
 class Line:
     def __init__(self, x, y, angle, weight):
         self.x = x
@@ -25,17 +26,17 @@ class Line:
             non_vert_line = None
             non_horiz_line = None
 
-            if self.angle == 0:
+            if self.angle == 0 or self.angle == 180:
                 horiz_line = self
                 non_horiz_line = other_line
-            elif other_line.angle == 0:
+            elif other_line.angle == 0 or other_line.angle == 180:
                 horiz_line = other_line
                 non_horiz_line = self
 
-            if self.angle == 90:
+            if self.angle == 90 or self.angle == 270:
                 vert_line = self
                 non_vert_line = other_line
-            elif other_line.angle == 90:
+            elif other_line.angle == 90 or other_line.angle == 270:
                 vert_line = other_line
                 non_vert_line = self
 
